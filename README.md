@@ -26,6 +26,7 @@ library(PhenoRec)
 
 For a step-by-step tutorial, please refer to the `vignettes` directory in the repository, which provides usage examples.
 
+* Example 1: [Analysis of scRNA-seq data](https://chaodeng-aca.github.io/PhenoRec/Analysis_of_scRNA-seq_data.html)
 
 ## Citation
 
