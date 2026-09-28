@@ -6,7 +6,7 @@ Current single-cell studies commonly profile samples collected from different bi
 
 PhenoRec addresses this problem by explicitly modeling phenotype-associated variation within a generalized latent variable model and introducing an identification strategy to disentangle it from batch variation. PhenoRec integrates single-cell data while preserving biologically meaningful phenotype signals. We expect that PhenoRec will provide a useful computational framework for phenotype-oriented single-cell studies.
 
-![PhenoRec Figure](PhenoRec.png)
+![Overview of PhenoRec](PhenoRec.png)
 
 ## Installation
 
