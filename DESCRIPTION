@@ -1,0 +1,32 @@
+Package: PhenoRec
+Type: Package
+Title: Phenotype-Preserving Integration of Single-Cell Data
+Version: 0.1.0
+Authors@R:
+    person(
+        given = "Chao",
+        family = "Deng",
+        role = c("aut", "cre"),
+        email = "deng_chao@sjtu.edu.cn"
+    )
+Description:
+    Provides methods for phenotype-preserving integration of single-cell
+    data. PhenoRec models cell-state, phenotype-associated, and batch-associated
+    variation and recovers phenotype signals that may be removed during
+    conventional single-cell data integration. The package supports Gaussian
+    and Bernoulli measurements for applications including single-cell RNA-seq
+    and single-cell ATAC-seq data.
+License: MIT + file LICENSE
+Encoding: UTF-8
+LazyData: true
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.3
+Imports:
+    doMC,
+    foreach,
+    glmnet,
+    Matrix,
+    pracma,
+    stats,
+    openblasctl,
+    doParallel
