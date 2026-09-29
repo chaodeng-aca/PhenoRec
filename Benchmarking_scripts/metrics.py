@@ -5,7 +5,6 @@ import pandas as pd
 import scanpy as sc
 
 from scib_metrics.benchmark import Benchmarker, BioConservation, BatchCorrection
-
 import numpy as np
 import anndata as ad
 from sklearn.neighbors import NearestNeighbors
