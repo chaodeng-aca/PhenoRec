@@ -28,6 +28,7 @@ For step-by-step tutorials, please refer to the `vignettes` directory, which pro
 
 * [Analysis of scRNA-seq data](https://chaodeng-aca.github.io/PhenoRec/Analysis_of_scRNA-seq_data.html)
 * [Analysis of scATAC-seq data](https://chaodeng-aca.github.io/PhenoRec/Analysis_of_scATAC-seq_data.html)
+* [Analysis of paired multimodal data](https://chaodeng-aca.github.io/PhenoRec/Analysis_of_paired_multimodal_data.html)
 
 ## Citation
 
