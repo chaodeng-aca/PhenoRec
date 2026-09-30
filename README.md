@@ -1,6 +1,6 @@
 # PhenoRec
 
-**PhenoRec** is an R package for **phenotype-preserving integration of single-cell data**.
+**PhenoRec** is an R package for **recovering phenotype signals lost during single-cell data**.
 
 Current single-cell studies commonly profile samples collected from different biological phenotypes or conditions, such as healthy and diseased individuals in case-control studies, patients at different disease stages or before and after treatment in longitudinal studies.  However, phenotype-associated variation can be inadvertently removed during routine single-cell data integration because it is inherently non-identifiable from batch variation. Consequently, while aligning cells across batches, conventional integration also aligns cells across phenotypes, thereby removing biologically meaningful differences between phenotype groups. 
 
