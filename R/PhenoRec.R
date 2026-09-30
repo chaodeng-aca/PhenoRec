@@ -79,7 +79,7 @@ gamma_estimation = function(U, Y, estimate_B_uz, d){
 }
 
 
-#' Run PhenoRec for Gaussian single-cell measurements
+#' Run PhenoRec for single-cell RNA measurements
 #'
 #' Fits the Gaussian version of PhenoRec using a previously estimated latent
 #' cell-state representation. The function estimates cell-state-dependent
@@ -114,7 +114,7 @@ gamma_estimation = function(U, Y, estimate_B_uz, d){
 #' phenotype encoding must refer to the same cells in the same order.
 #'
 #' @export
-PhenoRec_normal = function(input){
+PhenoRec_RNA = function(input){
 
   seurat_data = input$rna_data
   rna_data = seurat_data@assays$RNA$scale.data
@@ -209,6 +209,86 @@ encoding_function = function(seurat_data, batch_id, phenotype_id){
   return(list(batch_encoding = dummy_batch, phenotype_encoding = dummy_pheno))
 
 }
+
+#' Run PhenoRec for single-cell ADT measurements
+#'
+#' Fits the Gaussian version of PhenoRec using a previously estimated latent
+#' cell-state representation. The function estimates cell-state-dependent
+#' batch effects, identifies phenotype-associated effects, removes the
+#' batch-contrast component, and reconstructs phenotype-preserving integrated data.
+#'
+#' @param input A named list containing:
+#' \itemize{
+#'   \item \code{adt_data}: a Seurat object. The current implementation expects
+#'   scaled ADT measurements in \code{object@assays$ADT$scale.data} and a
+#'   latent cell-state embedding in
+#'   \code{object@reductions$estimate_z@cell.embeddings}.
+#'   \item \code{encoding_data}: a list containing \code{batch_encoding} and
+#'   \code{phenotype_encoding}, typically returned by
+#'   \code{encoding_function()}.
+#' }
+#'
+#' @return A named list containing:
+#' \itemize{
+#'   \item \code{estimate_eta}: fitted Gaussian values containing cell-state,
+#'   phenotype, and batch-contrast components.
+#'   \item \code{integrated_data}: phenotype-preserving integrated values after
+#'   removal of the batch-contrast component.
+#'   \item \code{estimate_Gamma_yz}: estimated phenotype effects.
+#'   \item \code{estimate_phi}: estimated latent cell-state loadings.
+#'   \item \code{estimate_B_uz}: estimated residual batch-contrast coefficients.
+#'   \item \code{estimate_alpha}: intercept values repeated across cells.
+#' }
+#'
+#' @details
+#' The rows of the latent embedding, ADT matrix, batch encoding, and
+#' phenotype encoding must refer to the same cells in the same order.
+#'
+#' @export
+PhenoRec_ADT = function(input){
+
+  seurat_data = input$adt_data
+  adt_data = seurat_data@assays$ADT$scale.data
+  adt_data= t(adt_data)
+
+  estimate_z = seurat_data@reductions$estimate_z@cell.embeddings
+  X = adt_data; U = input$encoding_data$batch_encoding; Y = input$encoding_data$phenotype_encoding
+
+  openblasctl::openblas_set_num_threads(60)
+
+  UZ = do.call(cbind, lapply(1:ncol(U), function(b) U[, b] * estimate_z))
+  YZ = do.call(cbind, lapply(1:ncol(Y), function(b) Y[, b] * estimate_z))
+
+  #OLS
+  Q = cbind(1, UZ, estimate_z)
+  theta_matrix = pinv(t(Q) %*% Q) %*% t(Q) %*% X
+
+  estimate_alpha = matrix(theta_matrix[1,],ncol = ncol(theta_matrix))
+  estimate_B_uz = theta_matrix[2:(1+ncol(UZ)),]
+  estimate_phi = theta_matrix[(2+ncol(UZ)):nrow(theta_matrix),]
+
+  bulk_result = gamma_estimation(U = U, Y = Y, estimate_B_uz = estimate_B_uz, d = ncol(estimate_z))
+
+  estimate_B_uz = bulk_result$bulk_estimate_B_uz
+  estimate_Gamma_yz = bulk_result$estimate_Gamma_yz
+
+  alpha_matrix = matrix(rep(estimate_alpha, nrow(X)), nrow = nrow(X), byrow = TRUE)
+
+  estimate_eta = alpha_matrix + UZ%*%estimate_B_uz + YZ%*%estimate_Gamma_yz + estimate_z%*%estimate_phi
+  rownames(estimate_eta) = rownames(X)
+
+  denoise_eta = alpha_matrix + YZ%*%estimate_Gamma_yz + estimate_z%*%estimate_phi
+  rownames(denoise_eta) = rownames(X)
+
+  message("PhenoRec completed.")
+
+  result = list(estimate_eta = estimate_eta, integrated_data = denoise_eta,
+                estimate_Gamma_yz = estimate_Gamma_yz,
+                estimate_phi = estimate_phi, estimate_B_uz = estimate_B_uz, estimate_alpha = alpha_matrix)
+
+  return(result)
+}
+
 
 #' Subsample negative cells for a binary feature
 #'
@@ -337,7 +417,7 @@ fit_glmnet_timeout <- function(Q_use, y_use, lambda0, timeout_sec = 300) {
 }
 
 
-#' Run PhenoRec for Bernoulli single-cell measurements
+#' Run PhenoRec for single-cell ATAC measurements
 #'
 #' Fits the Bernoulli version of PhenoRec to binarized single-cell chromatin
 #' accessibility measurements. For each feature, the function performs
@@ -381,7 +461,7 @@ fit_glmnet_timeout <- function(Q_use, y_use, lambda0, timeout_sec = 300) {
 #' fitting.
 #'
 #' @export
-PhenoRec_bernoulli = function(input,ncores,neg_ratio=5){
+PhenoRec_ATAC = function(input,ncores,neg_ratio=5){
 
   seurat_data = input$atac_data
   nFrag <- seurat_data$nCount_ATAC
@@ -399,13 +479,13 @@ PhenoRec_bernoulli = function(input,ncores,neg_ratio=5){
   UZ = do.call(cbind, lapply(1:ncol(U), function(b) U[, b] * estimate_z))
   YZ = do.call(cbind, lapply(1:ncol(Y), function(b) Y[, b] * estimate_z))
 
-  Q = cbind(UZ, estimate_z, log_nFrag = log_nFrag)  ##逻辑回归lm里面有截距项
+  Q = cbind(UZ, estimate_z, log_nFrag = log_nFrag)  ##glmnet includes an intercept internally
   print(dim(Q))
 
-  lambda0 <- 1e-5  #惩罚参数，为了解决逻辑回归中的可分离问题
+  lambda0 <- 1e-5  #Ridge penalty used to stabilize logistic regression under separation
   n_coef <- ncol(Q) + 1L
 
-  # 每块处理多少个 peaks
+  #Number of peaks processed per chunk
   chunk_size <- 100
   peak_ids <- seq_len(ncol(X))
   peak_chunks <- split(peak_ids, ceiling(seq_along(peak_ids) / chunk_size))
@@ -423,7 +503,7 @@ PhenoRec_bernoulli = function(input,ncores,neg_ratio=5){
     openblasctl::openblas_set_num_threads(1)
   }
 
-  # fork 并行，不使用 makeCluster
+  #Fork-based parallel
   registerDoMC(cores = ncores)
 
   print('parallel...........')
@@ -441,7 +521,7 @@ PhenoRec_bernoulli = function(input,ncores,neg_ratio=5){
     message(sprintf("Start chunk %d/%d", i, n_chunks))
 
     idx <- peak_chunks[[i]]
-    out <- matrix(NA_real_, nrow = n_coef+1, ncol = length(idx))  ##加一维加的是拟合优度
+    out <- matrix(NA_real_, nrow = n_coef+1, ncol = length(idx))
 
     for (k in seq_along(idx)) {
 
@@ -490,7 +570,7 @@ PhenoRec_bernoulli = function(input,ncores,neg_ratio=5){
 
   colnames(theta_matrix) <- colnames(X)
 
-  ## 删除含 NA / NaN / Inf / -Inf 的列
+  ## Remove features whose fitted coefficients contain NA/NaN/Inf/-Inf
   valid_cols <- colSums(!is.finite(theta_matrix)) == 0
   theta_matrix <- theta_matrix[, valid_cols, drop = FALSE]
   cat("Kept peaks:", sum(valid_cols), "\n")
@@ -518,7 +598,7 @@ PhenoRec_bernoulli = function(input,ncores,neg_ratio=5){
   denoise_eta = alpha_matrix + YZ%*%estimate_Gamma_yz + estimate_z%*%estimate_phi
   rownames(denoise_eta) = rownames(X)
   colnames(denoise_eta) = colnames(theta_matrix)
-  #denoise_prob <- plogis(denoise_eta)  ##计算开放的概率p
+  #denoise_prob <- plogis(denoise_eta)
 
   message("PhenoRec completed.")
 
